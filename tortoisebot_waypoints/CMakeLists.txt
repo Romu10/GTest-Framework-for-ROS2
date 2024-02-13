@@ -25,6 +25,7 @@ find_package(nav_msgs REQUIRED)
 find_package(action_msgs REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 find_package(waypoints_interfaces REQUIRED)
+find_package(tf2 REQUIRED)
 
 add_executable(tortoisebot_action_server src/tortoisebot_action_server.cpp)
 ament_target_dependencies(tortoisebot_action_server 
@@ -35,6 +36,7 @@ ament_target_dependencies(tortoisebot_action_server
 						nav_msgs   
 						rosidl_default_generators 
 						action_msgs
+						tf2
 						waypoints_interfaces)
 
 if(BUILD_TESTING)

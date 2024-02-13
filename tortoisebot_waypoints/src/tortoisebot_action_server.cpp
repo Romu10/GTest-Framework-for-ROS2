@@ -5,6 +5,8 @@
 #include "geometry_msgs/msg/point.hpp"
 #include "std_msgs/msg/bool.hpp"
 #include "nav_msgs/msg/odometry.hpp"
+#include <tf2/LinearMath/Quaternion.h>
+#include <tf2/utils.h>
 #include "waypoints_interfaces/action/waypoint_action.hpp"
 #include "math.h"
 #include <functional>
@@ -43,7 +45,7 @@ private:
         const rclcpp_action::GoalUUID &uuid,
         std::shared_ptr<const TortoisebotWaypoints::Goal> goal)
     {
-        RCLCPP_INFO(this->get_logger(), "Goal received");
+        RCLCPP_INFO(this->get_logger(), "Goal received: \nx: %f \ny: %f", goal->position.x, goal->position.y);
         (void)uuid;
 
         // Your goal handling logic here
@@ -77,9 +79,30 @@ private:
         RCLCPP_INFO(this->get_logger(), "Executing goal");
     }
 
+    long double calculateYaw(long double qx, long double qy, long double qz, long double qw) {
+
+        long double yaw = std::atan2(2 * ((qw * qz) + (qx * qy)), 1 - 2 * ((qy * qy) + (qz * qz)));
+        return yaw;
+    }
+
     void odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg)
     {
         // Getting robot's current position
+        current_position = msg->pose.pose.position; 
+
+        // Calculate Yaw
+        quaternion_x = msg->pose.pose.orientation.x;
+        quaternion_y = msg->pose.pose.orientation.y;
+        quaternion_z = msg->pose.pose.orientation.z;
+        quaternion_w = msg->pose.pose.orientation.w;
+
+        quaternion.x = quaternion_x;
+        quaternion.y = quaternion_y;
+        quaternion.z = quaternion_z;
+        quaternion.w = quaternion_w;
+
+        calculate_yaw = calculateYaw(quaternion_x, quaternion_y, quaternion_z, quaternion_w);
+        yaw_degree = (calculate_yaw * (180.0 / M_PI));
 
     }
 
@@ -88,6 +111,15 @@ private:
 
     // Variables 
     geometry_msgs::msg::Point current_position;
+    geometry_msgs::msg::Quaternion quaternion;
+    long double quaternion_x, quaternion_y, quaternion_z, quaternion_w = 0.0;  
+    double calculate_yaw; 
+    double yaw_degree;
+
+
+
+    
+
 };
 
 int main(int argc, char *argv[])
