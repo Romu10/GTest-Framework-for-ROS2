@@ -1,9 +1,12 @@
 #include "geometry_msgs/msg/detail/point__struct.hpp"
+#include "rclcpp/logging.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_action/rclcpp_action.hpp"
 #include "geometry_msgs/msg/twist.hpp"
 #include "geometry_msgs/msg/point.hpp"
 #include "std_msgs/msg/bool.hpp"
+#include "std_msgs/msg/detail/empty__struct.hpp"
+#include "std_msgs/msg/empty.hpp"
 #include "nav_msgs/msg/odometry.hpp"
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2/utils.h>
@@ -104,6 +107,13 @@ private:
         calculate_yaw = calculateYaw(quaternion_x, quaternion_y, quaternion_z, quaternion_w);
         yaw_degree = (calculate_yaw * (180.0 / M_PI));
 
+        if (!msg){
+            RCLCPP_ERROR(this->get_logger(), "No data received from topic: /odom");
+        }
+        else{
+            RCLCPP_INFO_ONCE(this->get_logger(), "Data received from topic /odom: \nYaw: %f", yaw_degree);
+        }
+
     }
 
     rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_pub_;
@@ -116,9 +126,6 @@ private:
     double calculate_yaw; 
     double yaw_degree;
 
-
-
-    
 
 };
 
