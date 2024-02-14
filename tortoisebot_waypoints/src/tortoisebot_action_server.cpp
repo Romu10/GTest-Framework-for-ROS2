@@ -1,6 +1,7 @@
 #include "geometry_msgs/msg/detail/point__struct.hpp"
 #include "rclcpp/logging.hpp"
 #include "rclcpp/rclcpp.hpp"
+#include "rclcpp/rate.hpp"
 #include "rclcpp_action/rclcpp_action.hpp"
 #include "geometry_msgs/msg/twist.hpp"
 #include "geometry_msgs/msg/point.hpp"
@@ -9,6 +10,7 @@
 #include "std_msgs/msg/empty.hpp"
 #include "nav_msgs/msg/odometry.hpp"
 #include <cmath>
+#include <string>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2/utils.h>
 #include "waypoints_interfaces/action/waypoint_action.hpp"
@@ -62,8 +64,6 @@ private:
         RCLCPP_INFO(this->get_logger(), "Goal cancelled");
         (void)goal_handle;
 
-        // Your cancellation logic here
-
         return rclcpp_action::CancelResponse::ACCEPT;
     }
 
@@ -81,13 +81,84 @@ private:
     {
         RCLCPP_INFO(this->get_logger(), "Executing goal");
 
+        // Helper variables
+        bool success = true;
+
         // Define desired position and erros
         desired_yaw = std::atan2(des_pos.y - cur_pos.y, des_pos.x - cur_pos.x);
         err_pos = std::sqrt(std::pow(des_pos.y - cur_pos.y, 2) + std::pow(des_pos.x - cur_pos.x, 2));
-        err_yaw = desired_yaw - current_yaw; 
+        err_yaw = desired_yaw - calculate_yaw; 
 
         // Printing 
         RCLCPP_INFO_ONCE(this->get_logger(), "Goal information: \nDesired yaw: %f \nError yaw: %f \nError position: %f", desired_yaw, err_yaw, err_pos);
+
+        // Feedback 
+        auto feedback = std::make_shared<TortoisebotWaypoints::Feedback>();
+        auto feedback_msg = std::make_shared<waypoints_interfaces::action::WaypointAction_Feedback>();
+        feedback_msg->position.x = cur_pos.x;
+        feedback_msg->position.y = cur_pos.y;
+        feedback_msg->position.z = cur_pos.z;
+        feedback_msg->state = state;
+
+        // Result
+        auto result = std::make_shared<TortoisebotWaypoints::Result>();
+
+        // Loop rate     
+        rclcpp::Rate loop_rate(25); 
+
+        while (err_pos > dist_precision && success == true && rclcpp::ok()){
+    
+            // update variables
+            desired_yaw = std::atan2(des_pos.y - cur_pos.y, des_pos.x - cur_pos.x);
+            err_pos = std::sqrt(std::pow(des_pos.y - cur_pos.y, 2) + std::pow(des_pos.x - cur_pos.x, 2));
+            err_yaw = desired_yaw - calculate_yaw; 
+            feedback_msg->position.x = cur_pos.x;
+            feedback_msg->position.y = cur_pos.y;
+            feedback_msg->position.z = cur_pos.z;
+            feedback_msg->state = state;
+            RCLCPP_INFO(this->get_logger(), "Goal information: \nDesired yaw: %f \nError yaw: %f \nError position: %f", desired_yaw, err_yaw, err_pos);
+
+            if (goal_handle->is_canceling()){
+                // cancelled
+                result->success = false;
+                goal_handle->canceled(result);
+                RCLCPP_INFO(this->get_logger(), "The goal has been cancelled/preempted");
+                success = false; 
+            }
+            else if (std::abs(err_yaw) > yaw_precision){
+                // fix yaw
+                state = "fix yaw";
+                RCLCPP_INFO(this->get_logger(), "state: fix yaw");
+                twist_msg.angular.z = (err_yaw > 0) ? 0.65 : -0.65;
+                cmd_vel_pub_->publish(twist_msg);
+            }
+            else{
+                // go to point
+                state = "go to point";
+                RCLCPP_INFO(this->get_logger(), "state: go to point");
+                twist_msg.linear.x = 0.6;
+                twist_msg.angular.z = 0.0;
+                cmd_vel_pub_->publish(twist_msg);
+            }
+
+            // loop rate
+            loop_rate.sleep();
+
+            // Publish feedback
+            goal_handle->publish_feedback(feedback_msg);
+        }
+
+        // Stop robot
+        twist_msg.linear.x = 0.0;
+        twist_msg.angular.z = 0.0;
+        cmd_vel_pub_->publish(twist_msg);
+
+        // Return success
+        if (success){
+            result->success = true;
+            goal_handle->succeed(result);
+            RCLCPP_INFO(this->get_logger(), "Goal succeeded");
+        }
 
     }
 
@@ -120,11 +191,10 @@ private:
             RCLCPP_ERROR(this->get_logger(), "No data received from topic: /odom");
         }
         else{
-            RCLCPP_INFO_ONCE(this->get_logger(), "Data received from topic /odom: \nYaw: %f", current_yaw);
+            RCLCPP_INFO_ONCE(this->get_logger(), "Data received from topic /odom: \nYaw: %f", calculate_yaw);
         }
 
     }
-
 
     rclcpp_action::Server<TortoisebotWaypoints>::SharedPtr action_server_;
     rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_pub_;
@@ -146,6 +216,19 @@ private:
     // Error related
     double err_pos; 
     double err_yaw;
+
+    // Parameters
+    double yaw_precision = M_PI / 90; 
+    float dist_precision = 0.05;
+
+    // Machine state
+    std::string state = "idle"; 
+
+    // Manage goal 
+    bool goal_cancel;
+
+    // cmd vel 
+    geometry_msgs::msg::Twist twist_msg;
 
 };
 
