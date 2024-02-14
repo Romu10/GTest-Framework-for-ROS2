@@ -47,7 +47,8 @@ if(BUILD_TESTING)
 
   set(TESTFILES
       test/main.cpp
-      test/tortoisebot_waypoints_test.cpp
+      test/tortoisebot_waypoints_position_test.cpp
+      test/tortoisebot_waypoints_rotation_test.cpp
       )
 
   ament_add_gtest(${PROJECT_NAME}_test ${TESTFILES})
