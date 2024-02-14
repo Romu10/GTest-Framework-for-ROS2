@@ -19,7 +19,6 @@
 #include <memory>
 #include <thread>
 
-
 class WaypointActionServer : public rclcpp::Node
 {
 public:

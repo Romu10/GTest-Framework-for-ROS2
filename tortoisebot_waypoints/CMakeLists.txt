@@ -41,6 +41,22 @@ ament_target_dependencies(tortoisebot_action_server
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
+  # GTest stuff
+  find_package(ament_lint_auto REQUIRED)
+  find_package(ament_cmake_gtest REQUIRED)
+
+  set(TESTFILES
+      test/main.cpp
+      test/tortoisebot_waypoints_test.cpp
+      )
+
+  ament_add_gtest(${PROJECT_NAME}_test ${TESTFILES})
+
+  install(TARGETS
+        ${PROJECT_NAME}_test
+		DESTINATION lib/${PROJECT_NAME})
+
+  # GTest stuff
   ament_lint_auto_find_test_dependencies()
 endif()
 
