@@ -10,9 +10,10 @@
 #include <chrono>
 #include <functional>
 #include <memory>
+#include <ostream>
 
 // using std::placeholders::_1;
-// using namespace std::chrono_literals;
+using namespace std::chrono_literals;
 
 class RclCppFixture {
 public:
@@ -72,6 +73,8 @@ public:
         auto goal_msg = TortoisebotWaypoints::Goal();
         goal_msg.position.x = 0.1;
         goal_msg.position.y = 0.1;
+        goal_pos_.x = goal_msg.position.x; 
+        goal_pos_.y = goal_msg.position.y;
 
         RCLCPP_INFO(this->get_logger(), "Sending goal");
 
@@ -90,14 +93,40 @@ public:
 
     };
 
-      double ActionClientTest(float test_data);
+    // Test method
+    double ActionClientTest(){
+        // test var
+        bool success;
+
+        // Parameters
+        // double yaw_precision = M_PI / 90; 
+        float dist_precision = 0.05;
+        float err_pos = 0.0;
+
+        // Calculate error position
+        err_pos = std::sqrt(std::pow(goal_pos_.y - cur_pos_.y, 2) + std::pow(goal_pos_.x - cur_pos_.x, 2));
+        
+        // Compare with margin 
+        if (err_pos < dist_precision){
+            success = true;
+        }else{
+            success = false; 
+        }
+
+        RCLCPP_INFO(this->get_logger(), "HOLA AQUI ESTOY");
+
+        return success; 
+    }
+
+    void TestBody() override {}
 
 private:
     rclcpp_action::Client<TortoisebotWaypoints>::SharedPtr client_ptr_;
     rclcpp::TimerBase::SharedPtr timer_;
     bool goal_done_;
     bool goal_success_; 
-    geometry_msgs::msg::Point position_;
+    geometry_msgs::msg::Point cur_pos_;
+    geometry_msgs::msg::Point goal_pos_;
 
     void goal_response_callback(std::shared_future<GoalHandleTortoisebotWaypoints::SharedPtr> future) {
         auto goal_handle = future.get();
@@ -112,15 +141,16 @@ private:
     rclcpp_action::ClientGoalHandle<TortoisebotWaypoints>::SharedPtr goal_handle,
     const std::shared_ptr<const TortoisebotWaypoints::Feedback> feedback)
     {
-        position_.x = feedback->position.x;
-        position_.y = feedback->position.y;
-        RCLCPP_INFO(this->get_logger(), "Feedback position received: \nx: %f \ny: %f", position_.x, position_.y);
+        cur_pos_.x = feedback->position.x;
+        cur_pos_.y = feedback->position.y;
+        RCLCPP_INFO(this->get_logger(), "Feedback position received: \nx: %f \ny: %f", cur_pos_.x, cur_pos_.y);
         RCLCPP_INFO(this->get_logger(), "Feedback state received: %s", feedback->state.c_str());
     }
 
     void result_callback(const rclcpp_action::ClientGoalHandle<TortoisebotWaypoints>::WrappedResult& result)
     {
         this->goal_done_ = true;
+        
         switch (result.code) {
         case rclcpp_action::ResultCode::SUCCEEDED:
             break;
@@ -143,13 +173,47 @@ private:
 
 };
 
-double WaypointActionClient::ActionClientTest(float test_data){
+/*
+double WaypointActionClient::ActionClientTest(){
     
+    // test var
+    bool success;
 
+    // Parameters
+    // double yaw_precision = M_PI / 90; 
+    float dist_precision = 0.05;
+    float err_pos = 0.0;
+
+    // Calculate error position
+    err_pos = std::sqrt(std::pow(goal_pos_.y - cur_pos_.y, 2) + std::pow(goal_pos_.x - cur_pos_.x, 2));
+    
+    // Compare with margin 
+    if (err_pos < dist_precision){
+        success = true;
+    }else{
+        success = false; 
+    }
+
+    return success; 
 }
+*/
 
 TEST_F(WaypointActionClient, PositionTest) {
-  EXPECT_TRUE(true);
+
+    auto action_client = std::make_shared<WaypointActionClient>();
+    rclcpp::executors::MultiThreadedExecutor executor;
+    executor.add_node(action_client);
+    bool success;
+
+    while (!action_client->is_goal_done()) {
+        executor.spin_some();
+    }
+    
+    RCLCPP_INFO(action_client->get_logger(), "HOLA");
+    success = action_client->ActionClientTest();
+
+    rclcpp::shutdown();
+    
+    EXPECT_TRUE(success == true);
 }
 
-// Using ROS2 BASICS PART2 as guide. 
