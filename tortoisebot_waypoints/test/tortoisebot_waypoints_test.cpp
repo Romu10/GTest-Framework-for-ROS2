@@ -5,9 +5,10 @@
 #include "rclcpp_action/rclcpp_action.hpp"
 #include "geometry_msgs/msg/point.hpp"
 #include "waypoints_interfaces/action/waypoint_action.hpp"
-
+#include "nav_msgs/msg/odometry.hpp"
 #include "gtest/gtest.h"
 #include <chrono>
+#include <cmath>
 #include <functional>
 #include <memory>
 #include <ostream>
@@ -29,9 +30,10 @@ public:
     using GoalHandleTortoisebotWaypoints = rclcpp_action::ClientGoalHandle<TortoisebotWaypoints>;
 
     explicit WaypointActionClient(const rclcpp::NodeOptions & node_options = rclcpp::NodeOptions())
-    : Node("tortoisebot_ac", node_options), goal_done_(false)
+    : Node("tortoisebot_ac_position_test", node_options), goal_done_(false)
     {
-        
+        using namespace std::placeholders;
+
         // Create the action client
         this->client_ptr_ = rclcpp_action::create_client<TortoisebotWaypoints>(
             this->get_node_base_interface(),
@@ -47,6 +49,8 @@ public:
 
         );
 
+        // Odom subscriber
+        odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>("/odom", 10, std::bind(&WaypointActionClient::odom_callback, this, _1));
     }
 
     bool is_goal_done() const
@@ -93,40 +97,45 @@ public:
 
     };
 
-    // Test method
-    double ActionClientTest(){
-        // test var
-        bool success;
-
-        // Parameters
-        // double yaw_precision = M_PI / 90; 
-        float dist_precision = 0.05;
-        float err_pos = 0.0;
-
+    // Test methods
+    double ActionClientTestPosition(){
+        // Define var
+        double err_pos;
         // Calculate error position
         err_pos = std::sqrt(std::pow(goal_pos_.y - cur_pos_.y, 2) + std::pow(goal_pos_.x - cur_pos_.x, 2));
-        
-        // Compare with margin 
-        if (err_pos < dist_precision){
-            success = true;
-            RCLCPP_INFO(this->get_logger(), "Position error smaller than 0.05");
-        }else{
-            success = false; 
-            RCLCPP_INFO(this->get_logger(), "Position error bigger than 0.05");
-        }
+        RCLCPP_INFO(this->get_logger(), "Error pos calculated");
+        return err_pos; 
+    }
 
-        return success; 
+    double ActionClientTestRotation(){
+        // Define var
+        double desired_yaw;
+        double err_yaw;
+        // Calculate error yaw
+        desired_yaw = std::atan2(goal_pos_.y - cur_pos_.y, goal_pos_.x - cur_pos_.x);
+        RCLCPP_INFO(this->get_logger(), "Error yaw calculated");
+        err_yaw = desired_yaw - calculate_yaw; 
+        
+        return std::abs(err_yaw); 
     }
 
     void TestBody() override {}
 
 private:
+    rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
     rclcpp_action::Client<TortoisebotWaypoints>::SharedPtr client_ptr_;
     rclcpp::TimerBase::SharedPtr timer_;
     bool goal_done_;
     bool goal_success_; 
     geometry_msgs::msg::Point cur_pos_;
     geometry_msgs::msg::Point goal_pos_;
+
+    // Calculate Yaw related
+    geometry_msgs::msg::Quaternion quaternion;
+    long double quaternion_x, quaternion_y, quaternion_z, quaternion_w = 0.0;  
+
+    // Yaw related
+    double calculate_yaw;
 
     void goal_response_callback(std::shared_future<GoalHandleTortoisebotWaypoints::SharedPtr> future) {
         auto goal_handle = future.get();
@@ -171,48 +180,64 @@ private:
         }
     }
 
-};
+    long double calculateYaw(long double qx, long double qy, long double qz, long double qw) {
 
-/*
-double WaypointActionClient::ActionClientTest(){
-    
-    // test var
-    bool success;
-
-    // Parameters
-    // double yaw_precision = M_PI / 90; 
-    float dist_precision = 0.05;
-    float err_pos = 0.0;
-
-    // Calculate error position
-    err_pos = std::sqrt(std::pow(goal_pos_.y - cur_pos_.y, 2) + std::pow(goal_pos_.x - cur_pos_.x, 2));
-    
-    // Compare with margin 
-    if (err_pos < dist_precision){
-        success = true;
-    }else{
-        success = false; 
+        long double yaw = std::atan2(2 * ((qw * qz) + (qx * qy)), 1 - 2 * ((qy * qy) + (qz * qz)));
+        return yaw;
     }
 
-    return success; 
-}
-*/
+    void odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg){
+        // Getting robot's current position
+        cur_pos_ = msg->pose.pose.position; 
 
-TEST_F(WaypointActionClient, PositionTest) {
+        // Calculate Yaw
+        quaternion_x = msg->pose.pose.orientation.x;
+        quaternion_y = msg->pose.pose.orientation.y;
+        quaternion_z = msg->pose.pose.orientation.z;
+        quaternion_w = msg->pose.pose.orientation.w;
+
+        quaternion.x = quaternion_x;
+        quaternion.y = quaternion_y;
+        quaternion.z = quaternion_z;
+        quaternion.w = quaternion_w;
+
+        calculate_yaw = calculateYaw(quaternion_x, quaternion_y, quaternion_z, quaternion_w);
+    }
+
+};
+
+TEST_F(WaypointActionClient, PositionRotationTest) {
 
     auto action_client = std::make_shared<WaypointActionClient>();
     rclcpp::executors::MultiThreadedExecutor executor;
     executor.add_node(action_client);
-    bool success;
+    float pos_err;
+
+    // Parameters
+    float dist_precision = 0.05;
 
     while (!action_client->is_goal_done()) {
         executor.spin_some();
     }
     
-    success = action_client->ActionClientTest();
+    pos_err = action_client->ActionClientTestPosition();
+    
+    EXPECT_LE(pos_err, dist_precision);
+}
+
+TEST_F(WaypointActionClient, RotationTest) {
+    auto action_client = std::make_shared<WaypointActionClient>();
+    float yaw_err;
+
+    // Parameters
+    double yaw_precision = 3.1415 / 90; 
+
+    yaw_err = action_client->ActionClientTestRotation();
+
+    EXPECT_LE(yaw_err, yaw_precision);
 
     rclcpp::shutdown();
-    
-    EXPECT_TRUE(success == true);
+
 }
+
 

@@ -47,8 +47,7 @@ if(BUILD_TESTING)
 
   set(TESTFILES
       test/main.cpp
-      test/tortoisebot_waypoints_position_test.cpp
-      test/tortoisebot_waypoints_rotation_test.cpp
+      test/tortoisebot_waypoints_test.cpp
       )
 
   ament_add_gtest(${PROJECT_NAME}_test ${TESTFILES})
@@ -57,10 +56,11 @@ if(BUILD_TESTING)
   							rclcpp
 							rclcpp_action
 							rosidl_default_generators
-							action_msgs
 							waypoints_interfaces
-							std_msgs
 							geometry_msgs
+							action_msgs
+							std_msgs
+							nav_msgs
 							tf2)
 
   install(TARGETS
