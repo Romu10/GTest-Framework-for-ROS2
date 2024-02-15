@@ -4,6 +4,7 @@ Created a package named "tortoisebot_waypoints" then inside this package created
 tortoisebot_action_server.cpp that allows the robot to follow provided waypoints. 
 
 After that created ROS Node Level tests using GTest:
+  
   1: Check that the end position [X,Y] of the robot is the expected one bases on the goal sent. By default the goal is
      a Point msg with value -> x = 0.1, y = 0.1. 
 
