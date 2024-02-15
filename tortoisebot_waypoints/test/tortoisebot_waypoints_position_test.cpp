@@ -109,11 +109,11 @@ public:
         // Compare with margin 
         if (err_pos < dist_precision){
             success = true;
+            RCLCPP_INFO(this->get_logger(), "Position error smaller than 0.05");
         }else{
             success = false; 
+            RCLCPP_INFO(this->get_logger(), "Position error bigger than 0.05");
         }
-
-        RCLCPP_INFO(this->get_logger(), "HOLA AQUI ESTOY");
 
         return success; 
     }
@@ -209,7 +209,6 @@ TEST_F(WaypointActionClient, PositionTest) {
         executor.spin_some();
     }
     
-    RCLCPP_INFO(action_client->get_logger(), "HOLA");
     success = action_client->ActionClientTest();
 
     rclcpp::shutdown();
