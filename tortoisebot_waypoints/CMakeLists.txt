@@ -40,7 +40,7 @@ ament_target_dependencies(tortoisebot_action_server
 						waypoints_interfaces)
 
 if(BUILD_TESTING)
-  find_package(ament_lint_auto REQUIRED)
+
   # GTest stuff
   find_package(ament_lint_auto REQUIRED)
   find_package(ament_cmake_gtest REQUIRED)
@@ -52,6 +52,16 @@ if(BUILD_TESTING)
       )
 
   ament_add_gtest(${PROJECT_NAME}_test ${TESTFILES})
+  # target_link_libraries(${PROJECT_NAME}_test ${PROJECT_NAME})
+  ament_target_dependencies(${PROJECT_NAME}_test 
+  							rclcpp
+							rclcpp_action
+							rosidl_default_generators
+							action_msgs
+							waypoints_interfaces
+							std_msgs
+							geometry_msgs
+							tf2)
 
   install(TARGETS
         ${PROJECT_NAME}_test
